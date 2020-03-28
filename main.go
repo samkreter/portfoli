@@ -25,7 +25,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	desiredAllocation, err := allocations.GetAllocation("AllWeather")
+	desiredAllocation, err := allocations.GetAllocation("Swensen")
 	if err != nil {
 		log.Fatal(err)
 	}
