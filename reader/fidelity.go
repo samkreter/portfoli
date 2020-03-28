@@ -21,7 +21,7 @@ func ParseRow(row []string) *FidelityRow {
 
 	quantity, err := strconv.ParseFloat(row[3], 64)
 	if err != nil {
-		log.Println("ERROR-quantity: ", err)
+		//log.Println("ERROR-quantity: ", err)
 		return nil
 	}
 

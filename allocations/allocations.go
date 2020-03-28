@@ -1,11 +1,17 @@
 package allocations
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+)
 
 type Asset struct {
 	Symbol string
 	Type string
-	Percent float64
+	CurrPercent float64
+	CurrValue float64
+	DesiredPercent float64
+	DesiredValue float64
 }
 
 type AssetAllocation []*Asset
@@ -13,14 +19,42 @@ type AssetAllocation []*Asset
 func (a AssetAllocation) Validate() error {
 	totalPercent := 0.0
 	for _, asset := range a {
-		totalPercent = totalPercent + asset.Percent
+		totalPercent = totalPercent + asset.DesiredPercent
 	}
 
-	if totalPercent != 1 {
-		return fmt.Errorf("allocation percentage doesn't add to 100%")
+	if math.Round(totalPercent) != 1 {
+		return fmt.Errorf("allocation percentage is %d, should be 1", totalPercent)
 	}
 
 	return nil
+}
+
+func (a AssetAllocation) GetCurrTotalVal() float64 {
+	total := 0.0
+	for _, asset := range a {
+		total = total + asset.CurrValue
+	}
+
+	return total
+}
+
+func (a AssetAllocation) ComputeCurrPercents() {
+	total := a.GetCurrTotalVal()
+
+	if math.Round(total) == 0 {
+		return
+	}
+
+	for _, asset := range a {
+		percent := asset.CurrValue / total
+		asset.CurrPercent = math.Round(percent * 100) / 100
+	}
+}
+
+func (a AssetAllocation) ComputeDesiredValues(total float64){
+	for _, asset := range a {
+		asset.DesiredValue = total * asset.DesiredPercent
+	}
 }
 
 
@@ -56,42 +90,42 @@ func getCurrentAllocation() AssetAllocation {
 		{
 			Symbol: "VTI",
 			Type: "Domestic",
-			Percent: .35,
+			DesiredPercent: .35,
 		},
 		{
 			Symbol: "VEA",
 			Type: "International",
-			Percent: .15,
+			DesiredPercent: .15,
 		},
 		{
 			Symbol: "VWO",
 			Type: "Emerging Markets",
-			Percent: .1,
+			DesiredPercent: .1,
 		},
 		{
 			Symbol: "TLT",
 			Type: "Long Term Treasurey",
-			Percent: .1,
+			DesiredPercent: .1,
 		},
 		{
 			Symbol: "IEF",
 			Type: "Short Term Treasury",
-			Percent: .1,
+			DesiredPercent: .1,
 		},
 		{
 			Symbol: "DBC",
 			Type: "Comodity",
-			Percent: .05,
+			DesiredPercent: .05,
 		},
 		{
 			Symbol: "GLD",
 			Type: "Comodity",
-			Percent: .05,
+			DesiredPercent: .05,
 		},
 		{
 			Symbol: "VNQ",
 			Type: "REITs",
-			Percent: .1,
+			DesiredPercent: .1,
 		},
 	}
 }
@@ -101,27 +135,27 @@ func getAllWeatherAllocation() AssetAllocation {
 		{
 			Symbol: "VTI",
 			Type: "Total Stock Market",
-			Percent: .3,
+			DesiredPercent: .3,
 		},
 		{
 			Symbol: "TLT",
 			Type: "20+ Year Treasury",
-			Percent: .4,
+			DesiredPercent: .4,
 		},
 		{
 			Symbol: "IEF",
 			Type: "7-10 Year Treasury",
-			Percent: .15,
+			DesiredPercent: .15,
 		},
 		{
 			Symbol: "DBC",
 			Type: "Commodity Index",
-			Percent: .075,
+			DesiredPercent: .075,
 		},
 		{
 			Symbol: "GLD",
 			Type: "Gold Index",
-			Percent: .075,
+			DesiredPercent: .075,
 		},
 	}
 }
@@ -131,32 +165,32 @@ func getSwensenAllocation() AssetAllocation {
 		{
 			Symbol: "VTI",
 			Type: "Domestic",
-			Percent: .30,
+			DesiredPercent: .3,
 		},
 		{
 			Symbol: "VEA",
 			Type: "International",
-			Percent: .15,
+			DesiredPercent: .15,
 		},
 		{
 			Symbol: "VWO",
 			Type: "Emerging Markets",
-			Percent: .05,
+			DesiredPercent: .05,
 		},
 		{
 			Symbol: "VTIP",
 			Type: "US Treasury Inflation Protection Securities",
-			Percent: .15,
+			DesiredPercent: .15,
 		},
 		{
 			Symbol: "VNQ",
 			Type: "REITs",
-			Percent: .2,
+			DesiredPercent: .2,
 		},
 		{
 			Symbol: "VGIT",
 			Type: "U.S. Treasury",
-			Percent: .15,
+			DesiredPercent: .15,
 		},
 	}
 }

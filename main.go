@@ -4,70 +4,96 @@ import (
 	"encoding/csv"
 	"fmt"
 	"log"
-	"io"
 	"os"
 
 	"github.com/samkreter/portfoli/reader"
-	//"github.com/samkreter/portfoli/allocations"
+	"github.com/samkreter/portfoli/allocations"
 )
 
 type Percent float64
 
+
+// 1. How much money is need to correctly rallocate
+// 2. Given a money, best ways to split to go towards allocatoin
+
 func main() {
 
-	fileName := "/Users/samkreter/Downloads/Portfolio_Position_Mar-27-2020.csv"
+	filename := "/Users/samkreter/Downloads/Portfolio_Position_Mar-27-2020.csv"
 
-	f, err := os.Open(fileName)
+	currPositions, err := getCurrentPositions(filename)
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	desiredAllocation, err := allocations.GetAllocation("AllWeather")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, asset := range desiredAllocation {
+		for _, position := range currPositions {
+			if asset.Symbol == position.Symbol {
+				asset.CurrValue = position.Current.Value
+			}
+		}
+	}
+
+	// Setup current percentages
+	desiredAllocation.ComputeCurrPercents()
+
+	// Setup Desired Values
+	currTotalVal := desiredAllocation.GetCurrTotalVal()
+	desiredAllocation.ComputeDesiredValues(currTotalVal)
+
+	// Find the biggest negitive to set as new base
+	biggestDiff := 0.0
+	currentVal := 0.0
+	desiredPecent := 0.0
+	for _, asset := range desiredAllocation {
+		diff := asset.DesiredValue - asset.CurrValue
+		if diff < biggestDiff {
+			biggestDiff = diff
+			currentVal = asset.CurrValue
+			desiredPecent = asset.DesiredPercent
+		}
+	}
+
+	if biggestDiff == 0.0 {
+		log.Println("No difference")
+		return
+	}
+
+	newTotal := currentVal / desiredPecent
+
+	desiredAllocation.ComputeDesiredValues(newTotal)
+
+	for _, asset := range desiredAllocation {
+		fmt.Println(asset.Symbol, "Curr Value: ", asset.CurrValue, "Desired: ", asset.DesiredValue)
+	}
+
+	fmt.Println("Cash required: ", newTotal - currTotalVal)
+}
+
+func getCurrentPositions(filename string) ([]*reader.FidelityRow, error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return nil, err
 	}
 	defer f.Close()
 
 	// Read File into a Variable
 	lines, err := csv.NewReader(f).ReadAll()
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	fmt.Println(len(lines))
-
-	rows := []*reader.FidelityRow{}
+	currentPositions := []*reader.FidelityRow{}
 	for _, line := range lines {
 		row := reader.ParseRow(line)
 		if row != nil {
-			rows = append(rows, row)
+			currentPositions = append(currentPositions, row)
 		}
 	}
 
-	for _, row := range rows {
-		fmt.Println(row)
-	}
-}
-
-func test(){
-
-	csvfile, err := os.Open("/Users/samkreter/Downloads/Portfolio_Position_Mar-27-2020.csv")
-	if err != nil {
-		log.Fatalln("Couldn't open the csv file", err)
-	}
-
-	// Parse the file
-	r := csv.NewReader(csvfile)
-	//r := csv.NewReader(bufio.NewReader(csvfile))
-
-	// Iterate through the records
-	for {
-		// Read each record from csv
-		record, err := r.Read()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Println(record)
-		break
-	}
-
-	//allocations.GetAllocation("AllWeather")
+	return currentPositions, nil
 }
