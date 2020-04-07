@@ -2,30 +2,39 @@ package main
 
 import (
 	"encoding/csv"
+	"flag"
 	"fmt"
 	"log"
 	"os"
+	"os/user"
 
 	"github.com/samkreter/portfoli/allocations"
 	"github.com/samkreter/portfoli/reader"
 )
 
-type Percent float64
-
 // 1. How much money is need to correctly rallocate
 // 2. Given a money, best ways to split to go towards allocatoin
 
 func main() {
+	filename := flag.String("inputfile", "", "filepath to the fidelity csv (defaults to ~/Downloads/portfoli.csv)")
+	assetAllocationName := flag.String("allocation-name", "Swensen", "Name of the asset allocation to use [Swensen, AllWeather]")
+	flag.Parse()
 
-	filename := "/Users/samkreter/Downloads/portfoli.csv"
+	if *filename == "" {
+		usr, err := user.Current()
+		if err != nil {
+			log.Fatal(err)
+		}
+		*filename = usr.HomeDir + "/Downloads/portfoli.csv"
+	}
 
-	currPositions, err := getCurrentPositions(filename)
+	currPositions, err := getCurrentPositions(*filename)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Get desired allocation percentages
-	desiredAllocation, err := allocations.GetAllocation("Swensen")
+	desiredAllocation, err := allocations.GetAllocation(*assetAllocationName)
 	if err != nil {
 		log.Fatal(err)
 	}
