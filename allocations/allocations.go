@@ -8,9 +8,12 @@ import (
 type Asset struct {
 	Symbol string
 	Type string
+
+	DesiredPercent float64
+
 	CurrPercent float64
 	CurrValue float64
-	DesiredPercent float64
+
 	DesiredValue float64
 }
 
@@ -27,6 +30,23 @@ func (a AssetAllocation) Validate() error {
 	}
 
 	return nil
+}
+
+// Will be nil if no negitive difference
+func (a AssetAllocation) ComputeGreatestNegativeDiff() *Asset {
+	// Find the biggest negative off current value
+	biggestDiff := 0.0
+	var biggestDiffAsset *Asset
+
+	for idx, asset := range a {
+		diff := asset.DesiredValue - asset.CurrValue
+		if diff < biggestDiff {
+			biggestDiff = diff
+			biggestDiffAsset = a[idx]
+		}
+	}
+
+	return biggestDiffAsset
 }
 
 func (a AssetAllocation) GetCurrTotalVal() float64 {

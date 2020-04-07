@@ -6,30 +6,31 @@ import (
 	"log"
 	"os"
 
-	"github.com/samkreter/portfoli/reader"
 	"github.com/samkreter/portfoli/allocations"
+	"github.com/samkreter/portfoli/reader"
 )
 
 type Percent float64
-
 
 // 1. How much money is need to correctly rallocate
 // 2. Given a money, best ways to split to go towards allocatoin
 
 func main() {
 
-	filename := "/Users/samkreter/Downloads/Portfolio_Position_Mar-27-2020.csv"
+	filename := "/Users/samkreter/Downloads/portfoli.csv"
 
 	currPositions, err := getCurrentPositions(filename)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	// Get desired allocation percentages
 	desiredAllocation, err := allocations.GetAllocation("Swensen")
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	// Add current asset positions
 	for _, asset := range desiredAllocation {
 		for _, position := range currPositions {
 			if asset.Symbol == position.Symbol {
@@ -38,40 +39,31 @@ func main() {
 		}
 	}
 
-	// Setup current percentages
+	// Compute Current Percentages
 	desiredAllocation.ComputeCurrPercents()
 
-	// Setup Desired Values
+	// Compute Desired Values based off percentages
 	currTotalVal := desiredAllocation.GetCurrTotalVal()
 	desiredAllocation.ComputeDesiredValues(currTotalVal)
 
-	// Find the biggest negitive to set as new base
-	biggestDiff := 0.0
-	currentVal := 0.0
-	desiredPecent := 0.0
-	for _, asset := range desiredAllocation {
-		diff := asset.DesiredValue - asset.CurrValue
-		if diff < biggestDiff {
-			biggestDiff = diff
-			currentVal = asset.CurrValue
-			desiredPecent = asset.DesiredPercent
-		}
-	}
-
-	if biggestDiff == 0.0 {
-		log.Println("No difference")
+	// Find the biggest negative off current value
+	biggestDiffAsset := desiredAllocation.ComputeGreatestNegativeDiff()
+	if biggestDiffAsset == nil {
+		log.Println("No Difference")
 		return
 	}
 
-	newTotal := currentVal / desiredPecent
-
+	// Compute new desired values using new total
+	newTotal := biggestDiffAsset.CurrValue / biggestDiffAsset.DesiredPercent
 	desiredAllocation.ComputeDesiredValues(newTotal)
 
+	var diff float64
 	for _, asset := range desiredAllocation {
-		fmt.Println(asset.Symbol, "Curr Value: ", asset.CurrValue, "Desired: ", asset.DesiredValue)
+		diff = asset.DesiredValue - asset.CurrValue
+		fmt.Println(asset.Symbol, "Curr Value: ", asset.CurrValue, "Desired: ", asset.DesiredValue, "Difference: ", diff)
 	}
 
-	fmt.Println("Cash required: ", newTotal - currTotalVal)
+	fmt.Println("Cash required: ", newTotal-currTotalVal)
 }
 
 func getCurrentPositions(filename string) ([]*reader.FidelityRow, error) {
