@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/user"
@@ -82,19 +83,42 @@ func getCurrentPositions(filename string) ([]*reader.FidelityRow, error) {
 	}
 	defer f.Close()
 
-	// Read File into a Variable
-	lines, err := csv.NewReader(f).ReadAll()
+	rows, err := readCSV(f)
 	if err != nil {
 		return nil, err
 	}
 
 	currentPositions := []*reader.FidelityRow{}
-	for _, line := range lines {
-		row := reader.ParseRow(line)
-		if row != nil {
-			currentPositions = append(currentPositions, row)
+	for _, row := range rows {
+		fRow := reader.ParseRow(row)
+		if fRow != nil {
+			currentPositions = append(currentPositions, fRow)
 		}
 	}
 
 	return currentPositions, nil
+}
+
+func readCSV(f *os.File) ([][]string, error) {
+	rows := [][]string{}
+	log.Println("here")
+	csvReader := csv.NewReader(f)
+	csvReader.LazyQuotes = true
+
+	for {
+		row, err := csvReader.Read()
+		if err != nil {
+			if err == io.EOF {
+				return rows, nil
+			}
+			// ignore invalid filed count since the fidelity csv's have junk at the end
+			if err, ok := err.(*csv.ParseError); ok && err.Err == csv.ErrFieldCount {
+				continue
+			}
+
+			return nil, err
+		}
+
+		rows = append(rows, row)
+	}
 }

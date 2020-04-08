@@ -9,9 +9,9 @@ import (
 
 const (
 	rowLength = 14
+	naConst   = "n/a"
+	emptyMark = "--"
 )
-
-
 
 func ParseRow(row []string) *FidelityRow {
 	if len(row) < rowLength {
@@ -19,15 +19,18 @@ func ParseRow(row []string) *FidelityRow {
 		return nil
 	}
 
-	quantity, err := strconv.ParseFloat(row[3], 64)
-	if err != nil {
-		//log.Println("ERROR-quantity: ", err)
-		return nil
+	var quantity float64
+	var err error
+	if row[3] != naConst {
+		quantity, err = strconv.ParseFloat(row[3], 64)
+		if err != nil {
+			log.Println(row[3], "ERROR-quantity: ", err)
+			return nil
+		}
 	}
 
 	lastPrice := &Currency{}
-	err = lastPrice.UnmarshalCSV(row[4])
-	if err != nil {
+	if err := lastPrice.UnmarshalCSV(row[4]); err != nil {
 		log.Println("ERROR-lastPrice: ", err)
 		return nil
 	}
@@ -47,8 +50,7 @@ func ParseRow(row []string) *FidelityRow {
 	}
 
 	todaysGainLossDollar := &Currency{}
-	err = todaysGainLossDollar.UnmarshalCSV(row[7])
-	if err != nil {
+	if err := todaysGainLossDollar.UnmarshalCSV(row[7]); err != nil {
 		log.Println("ERROR-todaysGainLossDollar: ", err)
 		return nil
 	}
@@ -56,7 +58,7 @@ func ParseRow(row []string) *FidelityRow {
 	todaysGainLossPercent := Percent(0.0)
 	err = todaysGainLossPercent.UnmarshalCSV(row[8])
 	if err != nil {
-		log.Println("ERROR-todaysGainLossPercent: ", err)
+		log.Println(row[8], "   ERROR-todaysGainLossPercent: ", err)
 		return nil
 	}
 
@@ -106,22 +108,21 @@ func ParseRow(row []string) *FidelityRow {
 	}
 }
 
-
 type FidelityRow struct {
-	AccountName string
-	Symbol string
-	Description string
-	Quantity float64
-	LastPrice *Currency
-	LastPriceChange *Currency
-	Current *Currency
-	TodaysGainLossDollar *Currency
+	AccountName           string
+	Symbol                string
+	Description           string
+	Quantity              float64
+	LastPrice             *Currency
+	LastPriceChange       *Currency
+	Current               *Currency
+	TodaysGainLossDollar  *Currency
 	TodaysGainLossPercent Percent
-	TotalGainLossDollar *Currency
-	TotalGainLossPercent Percent
-	CostBasisPerShare *Currency
-	CostBasisTotal *Currency
-	Type string
+	TotalGainLossDollar   *Currency
+	TotalGainLossPercent  Percent
+	CostBasisPerShare     *Currency
+	CostBasisTotal        *Currency
+	Type                  string
 }
 
 type Percent float64
@@ -129,7 +130,6 @@ type Percent float64
 func (p Percent) MarshalCSV() (string, error) {
 	return fmt.Sprintf("%f", p), nil
 }
-
 
 func (p Percent) String() string {
 	return fmt.Sprintf("%f", p)
@@ -141,12 +141,22 @@ func (p Percent) UnmarshalCSV(csv string) (err error) {
 		return nil
 	}
 
+	// ignore n/a values
+	if csv == naConst {
+		return nil
+	}
+
+	// ignore the empty markers
+	if csv == emptyMark {
+		return nil
+	}
+
 	// Not a percent
 	if string(csv[len(csv)-1]) != "%" {
 		return fmt.Errorf("invalid percent")
 	}
 
-	valStr := csv[0:len(csv) -1]
+	valStr := csv[0 : len(csv)-1]
 
 	val, err := strconv.ParseFloat(valStr, 64)
 	if err != nil {
@@ -158,9 +168,8 @@ func (p Percent) UnmarshalCSV(csv string) (err error) {
 	return nil
 }
 
-
 type Currency struct {
-	Type string
+	Type  string
 	Value float64
 }
 
@@ -178,12 +187,21 @@ func (c *Currency) UnmarshalCSV(csv string) (err error) {
 		return nil
 	}
 
+	// ignore n/a values
+	if csv == naConst {
+		return nil
+	}
+
+	// ignore the empty markers
+	if csv == emptyMark {
+		return nil
+	}
+
 	//c.Type = string(csv[0])
 	c.Type = "$"
 
 	valStr := strings.Replace(csv[1:], ",", "", -1)
 	valStr = strings.Replace(csv[1:], "$", "", -1)
-
 
 	val, err := strconv.ParseFloat(valStr, 64)
 	if err != nil {
@@ -194,4 +212,3 @@ func (c *Currency) UnmarshalCSV(csv string) (err error) {
 
 	return nil
 }
-
