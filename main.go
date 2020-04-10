@@ -18,7 +18,10 @@ import (
 
 func main() {
 	filename := flag.String("inputfile", "", "filepath to the fidelity csv (defaults to ~/Downloads/portfoli.csv)")
+
 	assetAllocationName := flag.String("allocation-name", "Swensen", "Name of the asset allocation to use [Swensen, AllWeather]")
+	flag.StringVar(assetAllocationName, "a", *assetAllocationName, "Name of the asset allocation to use [Swensen, AllWeather]")
+
 	flag.Parse()
 
 	if *filename == "" {
