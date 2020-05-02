@@ -2,27 +2,63 @@ package allocations
 
 import (
 	"fmt"
+	"log"
 	"math"
+
+	"github.com/samkreter/portfoli/asset"
 )
 
-type Asset struct {
-	Symbol string
-	Type string
+// AllocationPlan hold the total plane for all asset allocations
+type AllocationPlan struct {
+	Name        string
+	Allocations []*AssetAllocation
+}
 
+// AssetAllocation holds the allocation plan for a single asset
+type AssetAllocation struct {
+	// NonMutating
+	Symbol         string
 	DesiredPercent float64
 
-	CurrPercent float64
-	CurrValue float64
-
+	// Mutatable
+	CurrPercent  float64
+	CurrValue    float64
 	DesiredValue float64
 }
 
-type AssetAllocation []*Asset
+// AssetClassPercent shows the percent of an asset class
+type AssetClassPercent struct {
+	AssetClass    asset.Class
+	percentOfPlan float64
+}
 
-func (a AssetAllocation) Validate() error {
+// GetAllocation gets an allocation plan by name
+func GetAllocation(allocationPlanName string) (AllocationPlan, error) {
+	var allocationPlane AllocationPlan
+
+	switch allocationPlanName {
+	case "AllWeather":
+		allocationPlane = getAllWeatherAllocation()
+		if err := allocationPlane.Validate(); err != nil {
+			return allocationPlane, err
+		}
+		return allocationPlane, nil
+	case "Swensen":
+		allocationPlane = getSwensenAllocation()
+		if err := allocationPlane.Validate(); err != nil {
+			return allocationPlane, err
+		}
+		return allocationPlane, nil
+	default:
+		return allocationPlane, fmt.Errorf("invalid allocation name: %s", allocationPlanName)
+	}
+}
+
+// Validate ensures the allocation planes is valid
+func (plan AllocationPlan) Validate() error {
 	totalPercent := 0.0
-	for _, asset := range a {
-		totalPercent = totalPercent + asset.DesiredPercent
+	for _, aAllocation := range plan.Allocations {
+		totalPercent = totalPercent + aAllocation.DesiredPercent
 	}
 
 	if math.Round(totalPercent) != 1 {
@@ -32,185 +68,111 @@ func (a AssetAllocation) Validate() error {
 	return nil
 }
 
-// Will be nil if no negitive difference
-func (a AssetAllocation) ComputeGreatestNegativeDiff() *Asset {
+// GetCurrTotalVal returns the current total value for the asset plan
+func (plan AllocationPlan) GetCurrTotalVal() float64 {
+	total := 0.0
+	for _, aAllocation := range plan.Allocations {
+		total = total + aAllocation.CurrValue
+	}
+
+	return total
+}
+
+// GetCurrTotalVal returns the current total value for the asset plan
+func (plan AllocationPlan) GetDesiredTotalValue() float64 {
+	total := 0.0
+	for _, aAllocation := range plan.Allocations {
+		total = total + aAllocation.DesiredValue
+	}
+
+	return total
+}
+
+func (plan *AllocationPlan) UpdateDesiredValues() error {
+	// Compute Current Percentages
+	plan.computeCurrPercents()
+
+	// Compute Desired Values based off percentages
+	currTotalVal := plan.GetCurrTotalVal()
+	plan.computeDesiredValues(currTotalVal)
+
+	// Find the biggest negative off current value
+	biggestDiffAsset := plan.computeGreatestNegativeDiff()
+	if biggestDiffAsset.Symbol == "" {
+		log.Println("No Difference")
+		return nil
+	}
+
+	// Compute new desired values using new total
+	newTotal := biggestDiffAsset.CurrValue / biggestDiffAsset.DesiredPercent
+	plan.computeDesiredValues(newTotal)
+
+	return plan.Validate()
+}
+
+// GetAssetClassTotal gets the total asset class percentages for the allocation plan
+func (plan AllocationPlan) GetAssetClassTotal() []AssetClassPercent {
+	assetClasses := asset.GetAssetClasses()
+
+	classPercents := []AssetClassPercent{}
+
+	for _, class := range assetClasses {
+		classPercent := AssetClassPercent{
+			AssetClass: class,
+		}
+
+		for _, aAllocation := range plan.Allocations {
+			a, err := asset.GetAsset(aAllocation.Symbol)
+			if err != nil {
+				log.Printf("Warning: failed to get asset %q", aAllocation.Symbol)
+				continue
+			}
+
+			if a.Class == class {
+				classPercent.percentOfPlan += aAllocation.CurrPercent
+			}
+		}
+
+		classPercents = append(classPercents, classPercent)
+	}
+
+	return classPercents
+}
+
+// ComputeGreatestNegativeDiff gets the negitive off the current value
+func (plan *AllocationPlan) computeGreatestNegativeDiff() AssetAllocation {
 	// Find the biggest negative off current value
 	biggestDiff := 0.0
-	var biggestDiffAsset *Asset
+	var biggestDiffAsset AssetAllocation
 
-	for idx, asset := range a {
-		diff := asset.DesiredValue - asset.CurrValue
+	for idx, aAllocation := range plan.Allocations {
+		diff := aAllocation.DesiredValue - aAllocation.CurrValue
 		if diff < biggestDiff {
 			biggestDiff = diff
-			biggestDiffAsset = a[idx]
+			biggestDiffAsset = *plan.Allocations[idx]
 		}
 	}
 
 	return biggestDiffAsset
 }
 
-func (a AssetAllocation) GetCurrTotalVal() float64 {
-	total := 0.0
-	for _, asset := range a {
-		total = total + asset.CurrValue
-	}
-
-	return total
-}
-
-func (a AssetAllocation) ComputeCurrPercents() {
-	total := a.GetCurrTotalVal()
+// ComputeCurrPercents updates the current percents for each asset allocation in the plan
+func (plan *AllocationPlan) computeCurrPercents() {
+	total := plan.GetCurrTotalVal()
 
 	if math.Round(total) == 0 {
 		return
 	}
 
-	for _, asset := range a {
-		percent := asset.CurrValue / total
-		asset.CurrPercent = math.Round(percent * 100) / 100
+	for _, aAllocation := range plan.Allocations {
+		percent := aAllocation.CurrValue / total
+		aAllocation.CurrPercent = math.Round(percent*100) / 100
 	}
 }
 
-func (a AssetAllocation) ComputeDesiredValues(total float64){
-	for _, asset := range a {
-		asset.DesiredValue = total * asset.DesiredPercent
-	}
-}
-
-
-func GetAllocation(allocationName string) (AssetAllocation, error) {
-	var allocation AssetAllocation
-
-	switch allocationName {
-	case "AllWeather":
-		allocation = getAllWeatherAllocation()
-		if err := allocation.Validate(); err !=  nil {
-			return allocation, err
-		}
-		return allocation, nil
-	case "Swensen":
-		allocation = getSwensenAllocation()
-		if err := allocation.Validate(); err !=  nil {
-			return allocation, err
-		}
-		return allocation, nil
-	case "Current":
-		allocation = getCurrentAllocation()
-		if err := allocation.Validate(); err !=  nil {
-			return allocation, err
-		}
-		return allocation, nil
-	default:
-		return allocation, fmt.Errorf("invalid allocation name: %s", allocationName)
-	}
-}
-
-func getCurrentAllocation() AssetAllocation {
-	return []*Asset{
-		{
-			Symbol: "VTI",
-			Type: "Domestic",
-			DesiredPercent: .35,
-		},
-		{
-			Symbol: "VEA",
-			Type: "International",
-			DesiredPercent: .15,
-		},
-		{
-			Symbol: "VWO",
-			Type: "Emerging Markets",
-			DesiredPercent: .1,
-		},
-		{
-			Symbol: "TLT",
-			Type: "Long Term Treasurey",
-			DesiredPercent: .1,
-		},
-		{
-			Symbol: "IEF",
-			Type: "Short Term Treasury",
-			DesiredPercent: .1,
-		},
-		{
-			Symbol: "DBC",
-			Type: "Comodity",
-			DesiredPercent: .05,
-		},
-		{
-			Symbol: "GLD",
-			Type: "Comodity",
-			DesiredPercent: .05,
-		},
-		{
-			Symbol: "VNQ",
-			Type: "REITs",
-			DesiredPercent: .1,
-		},
-	}
-}
-
-func getAllWeatherAllocation() AssetAllocation {
-	return AssetAllocation{
-		{
-			Symbol: "VTI",
-			Type: "Total Stock Market",
-			DesiredPercent: .3,
-		},
-		{
-			Symbol: "TLT",
-			Type: "20+ Year Treasury",
-			DesiredPercent: .4,
-		},
-		{
-			Symbol: "IEF",
-			Type: "7-10 Year Treasury",
-			DesiredPercent: .15,
-		},
-		{
-			Symbol: "DBC",
-			Type: "Commodity Index",
-			DesiredPercent: .075,
-		},
-		{
-			Symbol: "GLD",
-			Type: "Gold Index",
-			DesiredPercent: .075,
-		},
-	}
-}
-
-func getSwensenAllocation() AssetAllocation {
-	return AssetAllocation{
-		{
-			Symbol: "VTI",
-			Type: "Domestic",
-			DesiredPercent: .3,
-		},
-		{
-			Symbol: "VEA",
-			Type: "International",
-			DesiredPercent: .15,
-		},
-		{
-			Symbol: "VWO",
-			Type: "Emerging Markets",
-			DesiredPercent: .05,
-		},
-		{
-			Symbol: "VTIP",
-			Type: "US Treasury Inflation Protection Securities",
-			DesiredPercent: .15,
-		},
-		{
-			Symbol: "VNQ",
-			Type: "REITs",
-			DesiredPercent: .2,
-		},
-		{
-			Symbol: "VGIT",
-			Type: "U.S. Treasury",
-			DesiredPercent: .15,
-		},
+// ComputeDesiredValues updates the desired values based on the total and desired percent
+func (plan *AllocationPlan) computeDesiredValues(total float64) {
+	for _, aAllocation := range plan.Allocations {
+		aAllocation.DesiredValue = total * aAllocation.DesiredPercent
 	}
 }

@@ -37,46 +37,33 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Get desired allocation percentages
-	desiredAllocation, err := allocations.GetAllocation(*assetAllocationName)
+	// Get desired allocation plan
+	allocationPlan, err := allocations.GetAllocation(*assetAllocationName)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Add current asset positions
-	for _, asset := range desiredAllocation {
+	for idx, allocationAsset := range allocationPlan.Allocations {
 		for _, position := range currPositions {
-			if asset.Symbol == position.Symbol {
-				asset.CurrValue = position.Current.Value
+			if allocationAsset.Symbol == position.Symbol {
+				allocationPlan.Allocations[idx].CurrValue = position.Current.Value
 			}
 		}
 	}
 
-	// Compute Current Percentages
-	desiredAllocation.ComputeCurrPercents()
-
-	// Compute Desired Values based off percentages
-	currTotalVal := desiredAllocation.GetCurrTotalVal()
-	desiredAllocation.ComputeDesiredValues(currTotalVal)
-
-	// Find the biggest negative off current value
-	biggestDiffAsset := desiredAllocation.ComputeGreatestNegativeDiff()
-	if biggestDiffAsset == nil {
-		log.Println("No Difference")
-		return
+	// Update the desired values/ percentages
+	if err := allocationPlan.UpdateDesiredValues(); err != nil {
+		log.Fatal(err)
 	}
-
-	// Compute new desired values using new total
-	newTotal := biggestDiffAsset.CurrValue / biggestDiffAsset.DesiredPercent
-	desiredAllocation.ComputeDesiredValues(newTotal)
 
 	var diff float64
-	for _, asset := range desiredAllocation {
-		diff = asset.DesiredValue - asset.CurrValue
-		fmt.Println(asset.Symbol, "Curr Value: ", asset.CurrValue, "Desired: ", asset.DesiredValue, "Difference: ", diff)
+	for _, allocationAsset := range allocationPlan.Allocations {
+		diff = allocationAsset.DesiredValue - allocationAsset.CurrValue
+		fmt.Println(allocationAsset.Symbol, "Curr Value: ", allocationAsset.CurrValue, "Desired: ", allocationAsset.DesiredValue, "Difference: ", diff)
 	}
 
-	fmt.Println("Cash required: ", newTotal-currTotalVal)
+	fmt.Println("Cash required: ", allocationPlan.GetDesiredTotalValue()-allocationPlan.GetCurrTotalVal())
 }
 
 func getCurrentPositions(filename string) ([]*reader.FidelityRow, error) {
@@ -104,7 +91,6 @@ func getCurrentPositions(filename string) ([]*reader.FidelityRow, error) {
 
 func readCSV(f *os.File) ([][]string, error) {
 	rows := [][]string{}
-	log.Println("here")
 	csvReader := csv.NewReader(f)
 	csvReader.LazyQuotes = true
 
