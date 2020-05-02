@@ -13,15 +13,13 @@ import (
 	"github.com/samkreter/portfoli/reader"
 )
 
-// 1. How much money is need to correctly rallocate
-// 2. Given a money, best ways to split to go towards allocatoin
+type command string
 
 func main() {
 	filename := flag.String("inputfile", "", "filepath to the fidelity csv (defaults to ~/Downloads/portfoli.csv)")
-
 	assetAllocationName := flag.String("allocation-name", "Swensen", "Name of the asset allocation to use [Swensen, AllWeather]")
 	flag.StringVar(assetAllocationName, "a", *assetAllocationName, "Name of the asset allocation to use [Swensen, AllWeather]")
-
+	command := flag.String("c", "printDesired", "the command to use")
 	flag.Parse()
 
 	if *filename == "" {
@@ -52,11 +50,30 @@ func main() {
 		}
 	}
 
-	// Update the desired values/ percentages
 	if err := allocationPlan.UpdateDesiredValues(); err != nil {
 		log.Fatal(err)
 	}
 
+	switch *command {
+	case "desired":
+		printPlanForReallocation(allocationPlan)
+	case "classes":
+		printAssetClassPercents(allocationPlan)
+	default:
+		log.Fatal("Unkown command")
+	}
+
+}
+
+func printAssetClassPercents(allocationPlan allocations.AllocationPlan) {
+	classPercents := allocationPlan.GetAssetClassTotal()
+	for _, classPecent := range classPercents {
+		percent := fmt.Sprintf("%d%%", int(classPecent.PercentOfPlan*100))
+		fmt.Println(classPecent.AssetClass, ": ", percent)
+	}
+}
+
+func printPlanForReallocation(allocationPlan allocations.AllocationPlan) {
 	var diff float64
 	for _, allocationAsset := range allocationPlan.Allocations {
 		diff = allocationAsset.DesiredValue - allocationAsset.CurrValue

@@ -29,7 +29,7 @@ type AssetAllocation struct {
 // AssetClassPercent shows the percent of an asset class
 type AssetClassPercent struct {
 	AssetClass    asset.Class
-	percentOfPlan float64
+	PercentOfPlan float64
 }
 
 // GetAllocation gets an allocation plan by name
@@ -129,7 +129,7 @@ func (plan AllocationPlan) GetAssetClassTotal() []AssetClassPercent {
 			}
 
 			if a.Class == class {
-				classPercent.percentOfPlan += aAllocation.CurrPercent
+				classPercent.PercentOfPlan += aAllocation.CurrPercent
 			}
 		}
 
