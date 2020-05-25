@@ -1,36 +1,26 @@
 package main
 
 import (
-	"encoding/csv"
 	"flag"
 	"fmt"
-	"io"
 	"log"
-	"os"
-	"os/user"
 
 	"github.com/samkreter/portfoli/allocations"
-	"github.com/samkreter/portfoli/reader"
+	"github.com/samkreter/portfoli/pkg/fidelity"
 )
 
 type command string
 
 func main() {
 	filename := flag.String("inputfile", "", "filepath to the fidelity csv (defaults to ~/Downloads/portfoli.csv)")
+
 	assetAllocationName := flag.String("allocation-name", "Swensen", "Name of the asset allocation to use [Swensen, AllWeather]")
 	flag.StringVar(assetAllocationName, "a", *assetAllocationName, "Name of the asset allocation to use [Swensen, AllWeather]")
-	command := flag.String("c", "printDesired", "the command to use")
+
+	command := flag.String("c", "desired", "the command to use")
 	flag.Parse()
 
-	if *filename == "" {
-		usr, err := user.Current()
-		if err != nil {
-			log.Fatal(err)
-		}
-		*filename = usr.HomeDir + "/Downloads/portfoli.csv"
-	}
-
-	currPositions, err := getCurrentPositions(*filename)
+	currPositions, err := fidelity.GetCurrentPositions(*filename)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -81,50 +71,4 @@ func printPlanForReallocation(allocationPlan allocations.AllocationPlan) {
 	}
 
 	fmt.Println("Cash required: ", allocationPlan.GetDesiredTotalValue()-allocationPlan.GetCurrTotalVal())
-}
-
-func getCurrentPositions(filename string) ([]*reader.FidelityRow, error) {
-	f, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	rows, err := readCSV(f)
-	if err != nil {
-		return nil, err
-	}
-
-	currentPositions := []*reader.FidelityRow{}
-	for _, row := range rows {
-		fRow := reader.ParseRow(row)
-		if fRow != nil {
-			currentPositions = append(currentPositions, fRow)
-		}
-	}
-
-	return currentPositions, nil
-}
-
-func readCSV(f *os.File) ([][]string, error) {
-	rows := [][]string{}
-	csvReader := csv.NewReader(f)
-	csvReader.LazyQuotes = true
-
-	for {
-		row, err := csvReader.Read()
-		if err != nil {
-			if err == io.EOF {
-				return rows, nil
-			}
-			// ignore invalid filed count since the fidelity csv's have junk at the end
-			if err, ok := err.(*csv.ParseError); ok && err.Err == csv.ErrFieldCount {
-				continue
-			}
-
-			return nil, err
-		}
-
-		rows = append(rows, row)
-	}
 }
